@@ -102,7 +102,7 @@ if role == "pabrik":
     st.title("🏭 Dashboard Admin Pabrik")
     t1, t2, t3 = st.tabs(["📊 Stok Barang", "📦 Pesanan Makloon", "➕ Tambah Produk"])
     
-   with t1:
+     with t1:
         st.subheader("📊 Inventory Real-time")
         df_stok = get_df("SELECT id, nama, stok, harga_jual FROM produk")
         
