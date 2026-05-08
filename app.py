@@ -121,9 +121,17 @@ if login_ui():
                     return [color] * len(row)
                 st.dataframe(df_stok.style.apply(style_stok, axis=1), use_container_width=True, hide_index=True)
             with c2:
-                fig = px.pie(df_stok, values='stok', names='nama', title="Komposisi Stok")
-                st.plotly_chart(fig, use_container_width=True)
-
+              elif role == "klien":
+    st.title("🤝 Portal Klien")
+    # Perbaikan: Filter data berdasarkan username yang login
+    # Jika di tabel pesanan nama kliennya adalah 'klien', maka data akan muncul
+    df_k = get_df("SELECT produk, jumlah, status FROM pesanan_makloon WHERE klien=?", (st.session_state.username,))
+    
+    if df_k.empty:
+        st.info(f"Halo {st.session_state.username}, saat ini belum ada pesanan atas nama Anda.")
+    else:
+        st.subheader("Status Pesanan Anda")
+        st.dataframe(df_k, use_container_width=True, hide_index=True)
         with t2:
             st.subheader("Kelola Pesanan Makloon")
             with st.expander("📝 Input Pesanan Baru"):
