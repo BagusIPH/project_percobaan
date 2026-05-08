@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 from datetime import datetime
-
+import plotly.express as px
 
 # --- Konfigurasi Halaman ---
 st.set_page_config(page_title="MDMS - CV Amal Mulia", layout="wide", page_icon="🏭")
@@ -102,33 +102,15 @@ if role == "pabrik":
     st.title("🏭 Dashboard Admin Pabrik")
     t1, t2, t3 = st.tabs(["📊 Stok Barang", "📦 Pesanan Makloon", "➕ Tambah Produk"])
     
-     with t1:
-        st.subheader("📊 Inventory Real-time")
-        df_stok = get_df("SELECT id, nama, stok, harga_jual FROM produk")
-        
+    with t1:
+        st.subheader("Inventory Real-time")
+        df_stok = get_df("SELECT * FROM produk")
         if not df_stok.empty:
-            # Menampilkan tabel dengan gaya yang bersih
-            st.dataframe(
-                df_stok, 
-                use_container_width=True, 
-                hide_index=True,
-                column_config={
-                    "harga_jual": st.column_config.NumberColumn("Harga (Rp)", format="Rp %d")
-                }
-            )
-            
-            # Grafik Stok
-            fig = px.bar(
-                df_stok, 
-                x="nama", 
-                y="stok", 
-                title="Grafik Ketersediaan Stok",
-                color="stok",
-                color_continuous_scale="Viridis"
-            )
+            st.dataframe(df_stok, use_container_width=True, hide_index=True)
+            fig = px.bar(df_stok, x="nama", y="stok", title="Grafik Ketersediaan Stok", color="stok")
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("💡 Belum ada data produk di gudang. Silakan tambah produk di Tab 'Tambah Produk'.")
+            st.info("Belum ada data produk.")
 
     with t2:
         st.subheader("Input Pesanan Makloon")
