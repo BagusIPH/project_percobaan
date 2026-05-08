@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 from datetime import datetime
-
+import plotly.express as px
 
 # --- Konfigurasi Halaman ---
 st.set_page_config(page_title="MDMS - CV Amal Mulia", layout="wide", page_icon="🏭")
