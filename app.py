@@ -121,7 +121,7 @@ if login_ui():
                     return [color] * len(row)
                 st.dataframe(df_stok.style.apply(style_stok, axis=1), use_container_width=True, hide_index=True)
             with c2:
-     elif role = "klien":
+    elif role = "klien":
     st.title("🤝 Portal Klien")
     # Perbaikan: Filter data berdasarkan username yang login
     # Jika di tabel pesanan nama kliennya adalah 'klien', maka data akan muncul
