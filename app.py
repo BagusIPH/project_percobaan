@@ -54,17 +54,15 @@ def get_connection():
     return sqlite3.connect('makloon.db')
 
 def get_data(query, params=()):
-    conn = get_connection()
-    df = pd.read_sql_query(query, conn, params=params)
-    conn.close()
+    with get_connection() as conn:
+        df = pd.read_sql_query(query, conn, params=params)
     return df
 
 def run_query(query, params=()):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(query, params)
-    conn.commit()
-    conn.close()
+    with get_connection() as conn:
+        c = conn.cursor()
+        c.execute(query, params)
+        conn.commit()
 
 # --- Sistem Autentikasi ---
 def check_password():
@@ -110,7 +108,7 @@ if check_password():
     st.sidebar.markdown(f"**Role:** {st.session_state.role.capitalize()}")
     st.sidebar.markdown("---")
     
-    # 1. TAMPILAN UNTUK PABRIK (CV Amal Mulia)
+    # 1. TAMPILAN UNTUK PABRIK
     if st.session_state.role == "pabrik":
         st.title("🏭 Dashboard Pabrik CV Amal Mulia")
         tab1, tab2, tab3, tab4 = st.tabs(["📊 Overview & Stok", "📦 Kelola Pesanan Makloon", "📈 Pantau Distributor", "➕ Tambah Produk"])
@@ -120,18 +118,20 @@ if check_password():
             with col1:
                 st.subheader("📦 Stok Produk Jadi Saat Ini")
                 df_produk = get_data("SELECT id, nama, stok, harga_jual FROM produk")
-                # Conditional formatting untuk stok menipis
+                
+                # Highlight stok menipis (Updated to map)
                 def highlight_stok(val):
-                    if val < 50:
-                        return 'background-color: #ffcccc'
-                    elif val < 150:
-                        return 'background-color: #ffffcc'
+                    if val < 50: return 'background-color: #ffcccc'
+                    elif val < 150: return 'background-color: #ffffcc'
                     return ''
-                st.dataframe(df_produk.style.applymap(highlight_stok, subset=['stok']), use_container_width=True, hide_index=True)
+                
+                st.dataframe(df_produk.style.map(highlight_stok, subset=['stok']), 
+                             use_container_width=True, hide_index=True)
             
             with col2:
                 st.subheader("📊 Grafik Stok")
-                fig = px.bar(df_produk, x='nama', y='stok', color='stok', text='stok', title="Visualisasi Stok per Produk")
+                fig = px.bar(df_produk, x='nama', y='stok', color='stok', text='stok', 
+                             color_continuous_scale='RdYlGn')
                 st.plotly_chart(fig, use_container_width=True)
 
             st.subheader("📋 Daftar Pesanan Makloon Aktif")
@@ -143,23 +143,31 @@ if check_password():
             with st.form("form_makloon"):
                 col1, col2 = st.columns(2)
                 with col1:
-                    klien = st.text_input("Nama Klien")
-                    produk = st.text_input("Nama Produk")
+                    klien_input = st.text_input("Nama Klien")
+                    produk_input = st.text_input("Nama Produk")
                 with col2:
-                    jumlah = st.number_input("Jumlah (pcs)", min_value=1, step=1)
-                    target = st.date_input("Target Selesai")
-                submitted = st.form_submit_button("Tambah Pesanan")
-                if submitted and klien and produk and jumlah:
-                    run_query("INSERT INTO pesanan_makloon (klien, produk, jumlah, status, tanggal_masuk, target_selesai) VALUES (?,?,?,?,?,?)",
-                              (klien, produk, jumlah, "Proses", datetime.now().strftime("%Y-%m-%d"), target.strftime("%Y-%m-%d")))
-                    st.success("Pesanan makloon berhasil ditambahkan!")
-                    st.rerun()
+                    jumlah_input = st.number_input("Jumlah (pcs)", min_value=1, step=1)
+                    target_input = st.date_input("Target Selesai")
+                
+                if st.form_submit_button("Tambah Pesanan"):
+                    if klien_input and produk_input:
+                        run_query("INSERT INTO pesanan_makloon (klien, produk, jumlah, status, tanggal_masuk, target_selesai) VALUES (?,?,?,?,?,?)",
+                                  (klien_input, produk_input, jumlah_input, "Proses", datetime.now().strftime("%Y-%m-%d"), target_input.strftime("%Y-%m-%d")))
+                        st.success("Pesanan makloon berhasil ditambahkan!")
+                        st.rerun()
 
             st.subheader("✏️ Update Status Pesanan")
             df_pesanan_update = get_data("SELECT id, klien, produk, status FROM pesanan_makloon")
             if not df_pesanan_update.empty:
-                selected_id = st.selectbox("Pilih Pesanan", df_pesanan_update['id'].tolist(), format_func=lambda x: f"{x} - {df_pesanan_update[df_pesanan_update['id']==x]['klien'].values[0]} - {df_pesanan_update[df_pesanan_update['id']==x]['produk'].values[0]}")
+                # Perbaikan lambda function untuk seleksi ID
+                options = df_pesanan_update['id'].tolist()
+                def get_label(id_val):
+                    row = df_pesanan_update[df_pesanan_update['id'] == id_val].iloc[0]
+                    return f"{id_val} - {row['klien']} ({row['produk']})"
+                
+                selected_id = st.selectbox("Pilih Pesanan", options, format_func=get_label)
                 new_status = st.selectbox("Update Status", ["Proses", "Quality Control", "Siap Kirim"])
+                
                 if st.button("Update Status"):
                     run_query("UPDATE pesanan_makloon SET status=? WHERE id=?", (new_status, selected_id))
                     st.success("Status berhasil diupdate!")
@@ -167,8 +175,6 @@ if check_password():
 
         with tab3:
             st.subheader("📡 Pantau Stok di Distributor")
-            st.info("🎯 Data ini mensimulasikan laporan stok dari para distributor mitra. **Tujuan TI 4.0**: Dengan data ini, pabrik bisa memprediksi kapan harus memproduksi ulang (*predictive restock*).")
-            # Data dummy distributor
             data_distributor = {
                 "Distributor": ["UD Makmur Jaya", "Toko Sumber Rezeki", "Agen Sentosa"],
                 "Saus Sambal": [120, 30, 80],
@@ -178,63 +184,45 @@ if check_password():
             df_dist = pd.DataFrame(data_distributor)
             st.dataframe(df_dist, use_container_width=True, hide_index=True)
             
-            # Grafik perbandingan
             df_dist_melt = df_dist.melt(id_vars=["Distributor"], var_name="Produk", value_name="Stok")
-            fig_dist = px.bar(df_dist_melt, x="Distributor", y="Stok", color="Produk", barmode="group", title="Perbandingan Stok per Distributor")
+            fig_dist = px.bar(df_dist_melt, x="Distributor", y="Stok", color="Produk", barmode="group")
             st.plotly_chart(fig_dist, use_container_width=True)
 
         with tab4:
-            st.subheader("➕ Tambah Produk Baru ke Sistem")
+            st.subheader("➕ Tambah Produk Baru")
             with st.form("tambah_produk"):
-                nama_produk = st.text_input("Nama Produk")
-                stok_awal = st.number_input("Stok Awal", min_value=0, step=10)
-                harga = st.number_input("Harga (Rp)", min_value=1000, step=1000)
+                nama_p = st.text_input("Nama Produk")
+                stok_p = st.number_input("Stok Awal", min_value=0, step=10)
+                harga_p = st.number_input("Harga (Rp)", min_value=1000, step=1000)
                 if st.form_submit_button("Simpan Produk"):
-                    if nama_produk:
+                    if nama_p:
                         try:
-                            run_query("INSERT INTO produk (nama, stok, harga_jual) VALUES (?,?,?)", (nama_produk, stok_awal, harga))
-                            st.success(f"Produk '{nama_produk}' berhasil ditambahkan!")
+                            run_query("INSERT INTO produk (nama, stok, harga_jual) VALUES (?,?,?)", (nama_p, stok_p, harga_p))
+                            st.success(f"Produk '{nama_p}' ditambahkan!")
                             st.rerun()
-                        except sqlite3.IntegrityError:
-                            st.error("Nama produk sudah ada. Gunakan nama lain.")
-                    else:
-                        st.error("Nama produk tidak boleh kosong.")
+                        except:
+                            st.error("Gagal menambahkan produk (cek apakah nama sudah ada).")
 
-    # 2. TAMPILAN UNTUK DISTRIBUTOR
+    # 2. TAMPILAN DISTRIBUTOR
     elif st.session_state.role == "distributor":
         st.title("🏪 Dashboard Distributor")
-        st.success("Anda dapat melihat stok terkini dan melaporkan stok di gudang Anda.")
+        df_pabrik = get_data("SELECT nama, stok as stok_pabrik, harga_jual FROM produk")
+        st.subheader("📊 Stok Real-time di Pabrik")
+        st.table(df_pabrik)
         
-        df_produk = get_data("SELECT nama, stok as stok_pabrik, harga_jual FROM produk")
-        st.subheader("📊 Informasi Stok dari Pabrik")
-        st.dataframe(df_produk, use_container_width=True, hide_index=True)
+        with st.expander("📝 Laporkan Stok Gudang Anda"):
+            for _, row in df_pabrik.iterrows():
+                st.number_input(f"Stok {row['nama']}", min_value=0, key=f"dist_{row['nama']}")
+            if st.button("Kirim Laporan"):
+                st.success("Laporan terkirim!")
 
-        with st.expander("📝 Laporkan Stok di Toko Saya"):
-            st.markdown("*Fitur ini mensimulasikan pelaporan stok. Di versi sesungguhnya, data ini akan langsung masuk ke dashboard pabrik.*")
-            laporan = {}
-            for _, row in df_produk.iterrows():
-                laporan[row['nama']] = st.number_input(f"Stok {row['nama']} di Toko", min_value=0, key=row['nama'])
-            if st.button("Kirim Laporan Stok"):
-                st.success("Terima kasih! Laporan stok Anda telah dikirim ke pabrik untuk membantu perencanaan produksi.")
-
-    # 3. TAMPILAN UNTUK KLIEN MAKLOON
+    # 3. TAMPILAN KLIEN
     elif st.session_state.role == "klien":
         st.title("👥 Portal Klien Makloon")
-        st.success("Anda dapat memonitor status pesanan makloon Anda secara real-time.")
-        
-        # Untuk kemudahan demo, kita asumsikan klien ini punya nama "Client A"
-        # Di aplikasi nyata, filter berdasarkan username klien yang login
-        demo_klien = "Client A" 
-        df_my_orders = get_data("SELECT produk, jumlah, status, tanggal_masuk, target_selesai FROM pesanan_makloon WHERE klien=?", (demo_klien,))
-        
-        if df_my_orders.empty:
-            st.info("Belum ada pesanan makloon atas nama Anda saat ini.")
+        # Simulasi: Klien hanya melihat datanya sendiri
+        df_orders = get_data("SELECT produk, jumlah, status, target_selesai FROM pesanan_makloon WHERE klien='klien' OR klien='Client A'")
+        if df_orders.empty:
+            st.info("Belum ada pesanan.")
         else:
-            st.subheader("Pesanan Aktif Anda")
-            st.dataframe(df_my_orders, use_container_width=True, hide_index=True)
-            
-            st.subheader("Status Pesanan")
-            status_order = df_my_orders['status'].value_counts().reset_index()
-            status_order.columns = ['Status', 'Jumlah Pesanan']
-            fig = px.pie(status_order, values='Jumlah Pesanan', names='Status', title='Visualisasi Status Pesanan Anda')
-            st.plotly_chart(fig, use_container_width=True)
+            st.subheader("Status Pesanan Anda")
+            st.dataframe(df_orders, use_container_width=True)
