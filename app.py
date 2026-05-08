@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 from datetime import datetime
-import plotly.express as px
+
 
 # --- Konfigurasi Halaman ---
 st.set_page_config(page_title="MDMS - CV Amal Mulia", layout="wide", page_icon="🏭")
@@ -104,7 +104,6 @@ if role == "pabrik":
         st.subheader("Inventory Real-time")
         df_stok = get_df("SELECT * FROM produk")
         st.dataframe(df_stok, use_container_width=True, hide_index=True)
-        
         fig = px.bar(df_stok, x="nama", y="stok", title="Grafik Ketersediaan Stok")
         st.plotly_chart(fig, use_container_width=True)
 
